@@ -1,0 +1,137 @@
+{
+  "schema_version": 1,
+  "kind": "camera-tracks-acceptance",
+  "zone_id": "zone-196-north",
+  "displacement_limit": "2",
+  "baseline": {
+    "dataset_id": "survey-196",
+    "version": 0,
+    "fingerprint": "7d617dc68146350ecbe1ca193bd08c6368ab2184ecc061479842b05fcbb98544"
+  },
+  "resurvey": {
+    "dataset_id": "survey-196-resurvey",
+    "version": 0,
+    "fingerprint": "32ed70ab060b632e0185766175e1e82f267b7181676aba3ecf4f1de246b72542"
+  },
+  "baseline_required": [
+    {
+      "sequence": 10,
+      "track_id": "marker"
+    },
+    {
+      "sequence": 20,
+      "track_id": "marker"
+    },
+    {
+      "sequence": 30,
+      "track_id": "marker"
+    }
+  ],
+  "resurvey_required": [
+    {
+      "sequence": 10,
+      "track_id": "marker"
+    },
+    {
+      "sequence": 20,
+      "track_id": "marker"
+    },
+    {
+      "sequence": 30,
+      "track_id": "marker"
+    }
+  ],
+  "candidates": [
+    {
+      "baseline": {
+        "sequence": 10,
+        "track_id": "marker"
+      },
+      "resurvey": {
+        "sequence": 10,
+        "track_id": "marker"
+      }
+    },
+    {
+      "baseline": {
+        "sequence": 10,
+        "track_id": "marker"
+      },
+      "resurvey": {
+        "sequence": 20,
+        "track_id": "marker"
+      }
+    },
+    {
+      "baseline": {
+        "sequence": 10,
+        "track_id": "marker"
+      },
+      "resurvey": {
+        "sequence": 30,
+        "track_id": "marker"
+      }
+    },
+    {
+      "baseline": {
+        "sequence": 20,
+        "track_id": "marker"
+      },
+      "resurvey": {
+        "sequence": 10,
+        "track_id": "marker"
+      }
+    },
+    {
+      "baseline": {
+        "sequence": 20,
+        "track_id": "marker"
+      },
+      "resurvey": {
+        "sequence": 20,
+        "track_id": "marker"
+      }
+    },
+    {
+      "baseline": {
+        "sequence": 20,
+        "track_id": "marker"
+      },
+      "resurvey": {
+        "sequence": 30,
+        "track_id": "marker"
+      }
+    },
+    {
+      "baseline": {
+        "sequence": 30,
+        "track_id": "marker"
+      },
+      "resurvey": {
+        "sequence": 10,
+        "track_id": "marker"
+      }
+    },
+    {
+      "baseline": {
+        "sequence": 30,
+        "track_id": "marker"
+      },
+      "resurvey": {
+        "sequence": 20,
+        "track_id": "marker"
+      }
+    },
+    {
+      "baseline": {
+        "sequence": 30,
+        "track_id": "marker"
+      },
+      "resurvey": {
+        "sequence": 30,
+        "track_id": "marker"
+      }
+    }
+  ],
+  "confirmations": []
+}

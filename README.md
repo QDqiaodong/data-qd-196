@@ -56,9 +56,23 @@ camera-tracks view    --store run/downstream.json    [--sequence 10 --track mark
 - 只有唯一重建、全部深度严格为正、全部残差平方长度不超过阈值平方时才交付；零/负深度、超差、不可观测都是逐点业务结果，按不可观测 → 非正深度 → 超差的顺序给主因。
 - 交付视图只含 `(采集序号, track ID)` 与精确 XYZ；指纹是 SHA-256，定义、规范化编码与失败诊断见 [交付契约](docs/delivery.md)。
 
+## 复测位移验收
+
+在交付视图之上再做离线验收（[验收契约](docs/acceptance.md)）：
+
+```sh
+camera-tracks accept --baseline VIEW1.json --resurvey VIEW2.json \
+                     --config ZONE.json --output REPORT.json
+```
+
+- 两轮扫描各自经交付链路导出 `view` JSON；配置指定基准/复测测次的 `dataset_id`、`version`、`fingerprint`（三者都须匹配，指纹相同也不能拿错版本）、验收区 ID、非负位移上限（精确有理数文本）、两侧各 1..4096 个必检点、至多 32768 条现场候选与可为空的人工确认。
+- 不把同名 track 或最近的点当作同一测点；位移大本身是要发现的结果，不作为排除对应的条件。完整对应须覆盖全部必检点、每点恰用一次并兑现全部确认。
+- 对应不完整时报告基准侧非空缺配集合及其全部可用复测邻居（邻居数严格小于集合点数）；存在完整对应时逐点给出可用对应与必定超限/必定不超限/取决于对应，并报告实际可达的最小、最大超限点数各附一份证据对应。最大值为零才可签字，最小值大于零为不合格，其余须核实标签。
+- 只读输入、原子新建报告、绝不覆盖已有报告；配置数组的排列不改变报告字节。4096 点规模基准实测约 0.3 s CPU、峰值 RSS 约 54 MiB（预算 30 s / 256 MiB），复现见 `python3 examples/accept_benchmark.py` 与 `./examples/accept.sh`。
+
 ## 已执行验证
 
-在本容器以 `PYTHONPATH=src python3 -m unittest discover -s tests -v` 实际运行 **54 项测试全部通过**，并运行 `examples/delivery.sh` 完成端到端走查（三条 `[2,1,4]` → 撤回 10、20 → 补回 20）。原基线的 5 项业务测试保持通过；`--source/--output` 报告与基线 HEAD 版本**字节一致**（已用 `git archive` 导出旧版对比）。
+在本容器以 `PYTHONPATH=src python3 -m unittest discover -s tests -v` 实际运行 **77 项测试全部通过**，并运行 `examples/delivery.sh` 完成端到端交付走查（三条 `[2,1,4]` → 撤回 10、20 → 补回 20）、`examples/accept.sh` 完成验收走查（仅候选判 `fail` 且无法指认 → 确认 `(30,marker)` 后锁定超限点）。原基线的 5 项业务测试保持通过；`--source/--output` 报告与基线 HEAD 版本**字节一致**（已用 `git archive` 导出旧版对比）。
 
 覆盖重点：
 
@@ -67,11 +81,14 @@ camera-tracks view    --store run/downstream.json    [--sequence 10 --track mark
 - 下游两次中断边界：撤回未生效时中断后仍见三条旧点/旧版本/原指纹，重投恰好撤回两条；撤回已生效但未答复时中断，重开后先应用恢复包，再重投首次撤回原包返回原成功版本并保留新点与新指纹（`test_interruption.py`）。
 - 上游更正版本、change_id、查询与导出可见性一同生效或一同失败（`test_interrupt_before_correct_commit_keeps_version_and_export`、`test_interrupt_after_correct_commit_leaves_consistent_version`）。
 - 更正旧请求重试、未知/冲突更正、失败请求不占 ID、旧版重导字节一致、损坏/跳版/串数据集/基指纹不符不改变下游、原单次重建入口行为（`test_delivery.py`、`test_downstream.py`、`test_validation.py`、`test_legacy_cli.py`）。
+- 复测位移验收：同轴两点的四种对应恰有一个超限（各自不可判但整体 `fail`）；确认把 `[0,2]` 区间分别收敛到 `[0,0]`（签字）与 `[2,2]`（不合格）；候选中进不了任何完整对应的边不出现在逐点对应里；位移恰好等于上限不算超限；配置数组置换后报告字节一致；共用同一复测点的缺配集合与邻居可由输入复算；仅因确认占用端点产生的缺配；错误版本（指纹不变）、篡改点值（保留旧指纹）、候选越界、已有报告不被覆盖；真实交付链路导出的视图端到端验收；4096 点规模两个用例的完整逐点结果与证据（`test_acceptance.py`）。
 
-源码入口为 `src/camera_tracks/service.py`（单次重建）与 `src/camera_tracks/upstream.py`、`downstream.py`（交付链路）；测试在 `tests/`。业务字段、身份、单位、界限和失败约定见 [数据契约](docs/contract.md) 与 [交付契约](docs/delivery.md)。样例全部为原创合成数据，见 [样例来源](fixtures/SOURCES.md)，源码和样例采用MIT许可。
+源码入口为 `src/camera_tracks/service.py`（单次重建）、`src/camera_tracks/upstream.py`、`downstream.py`（交付链路）与 `src/camera_tracks/accept.py`、`matching.py`（验收）；测试在 `tests/`。业务字段、身份、单位、界限和失败约定见 [数据契约](docs/contract.md)、[交付契约](docs/delivery.md) 与 [验收契约](docs/acceptance.md)。样例全部为原创合成数据，见 [样例来源](fixtures/SOURCES.md)，源码和样例采用MIT许可。
 
 ## 当前边界
 
 不读取图像，不做相机标定、非线性像素误差优化或束调整。投影矩阵缩放会改变代数权重；非正视深保留并标记。
 
 交付链路不实现网络同步、多写者调度或下游跨多版本跳跃；落后多轮时须按序补齐相邻包。两侧各为一个本地 JSON 状态文件，由命令行独占读写。
+
+验收命令只读输入、不做坐标拟合与点表回写，不自动匹配标签；一个配置处理一个验收区，候选与确认完全来自现场输入。

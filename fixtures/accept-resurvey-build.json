@@ -1,0 +1,60 @@
+{
+  "dataset_id": "survey-196-resurvey",
+  "max_reprojection_error": "0",
+  "cameras": [
+    {
+      "id": "left",
+      "projection": [
+        ["1", "0", "0", "0"],
+        ["0", "1", "0", "0"],
+        ["0", "0", "1", "0"]
+      ]
+    },
+    {
+      "id": "right",
+      "projection": [
+        ["1", "0", "0", "-1"],
+        ["0", "1", "0", "0"],
+        ["0", "0", "1", "0"]
+      ]
+    }
+  ],
+  "batches": [
+    {
+      "sequence": 10,
+      "tracks": [
+        {
+          "id": "marker",
+          "observations": [
+            {"camera_id": "left", "xy": ["0.75", "0.25"], "weight": "1"},
+            {"camera_id": "right", "xy": ["0.5", "0.25"], "weight": "1"}
+          ]
+        }
+      ]
+    },
+    {
+      "sequence": 20,
+      "tracks": [
+        {
+          "id": "marker",
+          "observations": [
+            {"camera_id": "left", "xy": ["0.5", "0.25"], "weight": "1"},
+            {"camera_id": "right", "xy": ["0.25", "0.25"], "weight": "1"}
+          ]
+        }
+      ]
+    },
+    {
+      "sequence": 30,
+      "tracks": [
+        {
+          "id": "marker",
+          "observations": [
+            {"camera_id": "left", "xy": ["2.25", "0.25"], "weight": "1"},
+            {"camera_id": "right", "xy": ["2", "0.25"], "weight": "1"}
+          ]
+        }
+      ]
+    }
+  ]
+}
