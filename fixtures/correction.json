@@ -1,0 +1,17 @@
+{
+  "dataset_id": "survey-196",
+  "change_id": "flip-right-x-10-20",
+  "base_version": 0,
+  "replacements": [
+    {
+      "camera_id": "right",
+      "start": 10,
+      "end": 20,
+      "projection": [
+        ["1", "0", "0", "1"],
+        ["0", "1", "0", "0"],
+        ["0", "0", "1", "0"]
+      ]
+    }
+  ]
+}

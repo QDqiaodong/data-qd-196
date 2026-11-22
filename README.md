@@ -1,10 +1,10 @@
-# data-qd-196 · 多视图观测点重建
+# data-qd-196 · 多视图观测点重建与离线交付
 
-由已给相机投影矩阵与同名二维观测，解加权代数最小二乘三维点，输出回投影残差、视深和不可观测状态。
+由已给相机投影矩阵与同名二维观测，解加权代数最小二乘三维点，输出回投影残差、视深和不可观测状态。在此基础上提供一条可纠错的离线点云交付链路：上游按标定版本重建并导出全量/增量包，下游按相邻版本原子应用、可重投、可查询。
 
 ## 安装与运行
 
-Python >=3.11，实际验证 CPython 3.12.14 + uv 0.12.19。运行依赖仅标准库；构建固定 setuptools 80.9.0、wheel 0.45.1。每个项目独立虚拟环境，公共下载缓存可以复用。
+Python >=3.11，实际验证 CPython 3.11.2（本容器）与 CPython 3.12.14 + uv 0.12.19（原基线环境）。运行依赖仅标准库；构建固定 setuptools 80.9.0、wheel 0.45.1。每个项目独立虚拟环境，公共下载缓存可以复用。
 
 在本仓根目录执行：
 
@@ -19,6 +19,14 @@ uv pip check --python .venv/bin/python
 
 以上安装命令已在本地公共缓存存在时真实执行。首次使用且缓存为空时须先准备 Python 和锁定构建包，或在允许联网的安装环境移除对应 `--offline`；运行与测试不需要网络。`.venv` 互不共享，未纳入Git。
 
+不建虚拟环境也可以直接运行（本容器实际采用的验证方式）：
+
+```sh
+PYTHONPATH=src python3 -m unittest discover -s tests -v
+PYTHONPATH=src python3 -m camera_tracks.cli --source fixtures/input.json --output run/demo.json
+./examples/delivery.sh            # 完整交付走查，产物在 run/example/
+```
+
 样例重建 XYZ = [2,1,4]，两台相机回投影误差均为0。
 
 演示标准输出摘要：
@@ -29,14 +37,41 @@ uv pip check --python .venv/bin/python
 
 完整证据写入 `run/demo.json`。数值输入为契约约定的十进制字符串或整数分数对，输出的精确有理数采用整数或 `n/d` 字符串，避免浮点舍入。
 
+## 离线标定更正与交付
+
+新增子命令，`camera-tracks --source ... --output ...` 的输入、报告字节和退出码不变：
+
+```sh
+camera-tracks build   --input fixtures/build.json    --store run/upstream.json
+camera-tracks correct --store run/upstream.json      --request CHANGE.json
+camera-tracks query   --store run/upstream.json      --version 1 --sequence 10 --track marker
+camera-tracks export  --store run/upstream.json      --full --output run/full.json
+camera-tracks export  --store run/upstream.json      --base-version 0 --output run/delta.json
+camera-tracks apply   --store run/downstream.json    --package run/delta.json
+camera-tracks view    --store run/downstream.json    [--sequence 10 --track marker | --output run/view.json]
+```
+
+- 上游：一个数据集建一个状态库（版本 0），之后每次有效更正产生一个不可变的新版本；可按指定版本查询每个点的标定来源、重建状态、深度、回投影诊断与可交付原因；可导出首版全量或任意相邻版本增量，同一端点重复导出字节一致。
+- 下游：空库只收首版，此后只收基版本/基指纹吻合的下一包；应用前后校验记录、删除目标与目标指纹，一次原子提交；原包重投答复原成功版本，不回退不重写；损坏、跳版、串数据集、指纹不符的包不留下任何变化。
+- 只有唯一重建、全部深度严格为正、全部残差平方长度不超过阈值平方时才交付；零/负深度、超差、不可观测都是逐点业务结果，按不可观测 → 非正深度 → 超差的顺序给主因。
+- 交付视图只含 `(采集序号, track ID)` 与精确 XYZ；指纹是 SHA-256，定义、规范化编码与失败诊断见 [交付契约](docs/delivery.md)。
+
 ## 已执行验证
 
-独立环境离线构建安装、依赖一致性检查、5项业务测试及安装后的命令行端到端演示通过。另核重复目标、符号链接目标和重复JSON键都返回2，既有输出字节不变，非法输入不发布报告。输出路径必须未存在，重新演示请选新文件名。
+在本容器以 `PYTHONPATH=src python3 -m unittest discover -s tests -v` 实际运行 **54 项测试全部通过**，并运行 `examples/delivery.sh` 完成端到端走查（三条 `[2,1,4]` → 撤回 10、20 → 补回 20）。原基线的 5 项业务测试保持通过；`--source/--output` 报告与基线 HEAD 版本**字节一致**（已用 `git archive` 导出旧版对比）。
 
-源码入口为 `src/camera_tracks/service.py`，测试在 `tests/`。业务字段、身份、单位、界限和失败约定见 [数据契约](docs/contract.md)。样例全部为原创合成数据，见 [样例来源](fixtures/SOURCES.md)，源码和样例采用MIT许可。
+覆盖重点：
+
+- 负深度更正：受影响两点仍有唯一零残差解但深度为负，增量只撤回 `(10,marker)`、`(20,marker)`；随后只恢复 `[20,30]`，增量只补回 `(20,marker)`，不为 30 发伪更新（`test_negative_depth_correction_retracts_two_points_then_restores_one`）。
+- 真正改变 XYZ 的合格更新，以及无记录的增量仍推进版本（`test_xyz_update_and_empty_delta_both_advance_versions`）。
+- 下游两次中断边界：撤回未生效时中断后仍见三条旧点/旧版本/原指纹，重投恰好撤回两条；撤回已生效但未答复时中断，重开后先应用恢复包，再重投首次撤回原包返回原成功版本并保留新点与新指纹（`test_interruption.py`）。
+- 上游更正版本、change_id、查询与导出可见性一同生效或一同失败（`test_interrupt_before_correct_commit_keeps_version_and_export`、`test_interrupt_after_correct_commit_leaves_consistent_version`）。
+- 更正旧请求重试、未知/冲突更正、失败请求不占 ID、旧版重导字节一致、损坏/跳版/串数据集/基指纹不符不改变下游、原单次重建入口行为（`test_delivery.py`、`test_downstream.py`、`test_validation.py`、`test_legacy_cli.py`）。
+
+源码入口为 `src/camera_tracks/service.py`（单次重建）与 `src/camera_tracks/upstream.py`、`downstream.py`（交付链路）；测试在 `tests/`。业务字段、身份、单位、界限和失败约定见 [数据契约](docs/contract.md) 与 [交付契约](docs/delivery.md)。样例全部为原创合成数据，见 [样例来源](fixtures/SOURCES.md)，源码和样例采用MIT许可。
 
 ## 当前边界
 
 不读取图像，不做相机标定、非线性像素误差优化或束调整。投影矩阵缩放会改变代数权重；非正视深保留并标记。
 
-本仓提供当前文档描述的业务基线；尚未实现的演进能力见契约中的集成说明，不承诺固定数量的后续任务。
+交付链路不实现网络同步、多写者调度或下游跨多版本跳跃；落后多轮时须按序补齐相邻包。两侧各为一个本地 JSON 状态文件，由命令行独占读写。
