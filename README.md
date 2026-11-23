@@ -25,6 +25,7 @@ uv pip check --python .venv/bin/python
 PYTHONPATH=src python3 -m unittest discover -s tests -v
 PYTHONPATH=src python3 -m camera_tracks.cli --source fixtures/input.json --output run/demo.json
 ./examples/delivery.sh            # 完整交付走查，产物在 run/example/
+./examples/resurvey.sh            # 补测工单走查，产物在 run/resurvey/
 ```
 
 样例重建 XYZ = [2,1,4]，两台相机回投影误差均为0。
@@ -70,9 +71,22 @@ camera-tracks accept --baseline VIEW1.json --resurvey VIEW2.json \
 - 对应不完整时报告基准侧非空缺配集合及其全部可用复测邻居（邻居数严格小于集合点数）；存在完整对应时逐点给出可用对应与必定超限/必定不超限/取决于对应，并报告实际可达的最小、最大超限点数各附一份证据对应。最大值为零才可签字，最小值大于零为不合格，其余须核实标签。
 - 只读输入、原子新建报告、绝不覆盖已有报告；配置数组的排列不改变报告字节。4096 点规模基准实测约 0.3 s CPU、峰值 RSS 约 54 MiB（预算 30 s / 256 MiB），复现见 `python3 examples/accept_benchmark.py` 与 `./examples/accept.sh`。
 
+## 补测工单
+
+在交付视图之上离线生成下一轮补测工单（[补测工单契约](docs/resurvey.md)）：
+
+```sh
+camera-tracks resurvey --view VIEW.json --plan PLAN.json --output REPORT.json
+```
+
+- 区域方案给出区域 ID、预期端点（`dataset_id`、`version`、`fingerprint` 三者都须匹配）、网格原点/边长/行列数、有效高程带、每格要求的独立采集批数，以及免测通行矩形与禁入矩形两个列表（合计至多 25,000 个）。格子归属与高程判定用精确有理数，不用浮点。
+- 每格四类互斥：禁入 > 通行 > 已验收（独立批数达标，按 `sequence` 去重）> 待补。待补格与通行格沿格边连通（角接触不算），禁入与已验收格隔断工单；每个含待补格的连通分量出一张工单，仅含通行格的分量不出单。
+- 报告给出四类精确格数（十进制整数字符串）与每单的待补格数、最小外接格边界、标识格和精确待补范围（若干非空、两两不重叠的半开矩形，并集恰为本单待补格）；只置换输入数组或重排对象键不改变报告字节。只读输入、原子新建报告、绝不覆盖已有报告。
+- 10^9×10^9 网格、两万余障碍的容量样例实测约 0.36 s CPU、峰值 RSS 约 67 MiB（预算 20 s / 192 MiB），复现见 `python3 examples/resurvey_benchmark.py` 与 `./examples/resurvey.sh`。
+
 ## 已执行验证
 
-在本容器以 `PYTHONPATH=src python3 -m unittest discover -s tests -v` 实际运行 **77 项测试全部通过**，并运行 `examples/delivery.sh` 完成端到端交付走查（三条 `[2,1,4]` → 撤回 10、20 → 补回 20）、`examples/accept.sh` 完成验收走查（仅候选判 `fail` 且无法指认 → 确认 `(30,marker)` 后锁定超限点）。原基线的 5 项业务测试保持通过；`--source/--output` 报告与基线 HEAD 版本**字节一致**（已用 `git archive` 导出旧版对比）。
+在本容器以 `PYTHONPATH=src python3 -m unittest discover -s tests -v` 实际运行 **95 项测试全部通过**，并运行 `examples/delivery.sh` 完成端到端交付走查（三条 `[2,1,4]` → 撤回 10、20 → 补回 20）、`examples/accept.sh` 完成验收走查（仅候选判 `fail` 且无法指认 → 确认 `(30,marker)` 后锁定超限点）、`examples/resurvey.sh` 完成补测工单走查（三点使 `(2,1)` 格达标，开出覆盖 13 个待补格的一单）。原基线的 5 项业务测试保持通过；`--source/--output` 报告与基线 HEAD 版本**字节一致**（已用 `git archive` 导出旧版对比）。
 
 覆盖重点：
 
@@ -82,8 +96,9 @@ camera-tracks accept --baseline VIEW1.json --resurvey VIEW2.json \
 - 上游更正版本、change_id、查询与导出可见性一同生效或一同失败（`test_interrupt_before_correct_commit_keeps_version_and_export`、`test_interrupt_after_correct_commit_leaves_consistent_version`）。
 - 更正旧请求重试、未知/冲突更正、失败请求不占 ID、旧版重导字节一致、损坏/跳版/串数据集/基指纹不符不改变下游、原单次重建入口行为（`test_delivery.py`、`test_downstream.py`、`test_validation.py`、`test_legacy_cli.py`）。
 - 复测位移验收：同轴两点的四种对应恰有一个超限（各自不可判但整体 `fail`）；确认把 `[0,2]` 区间分别收敛到 `[0,0]`（签字）与 `[2,2]`（不合格）；候选中进不了任何完整对应的边不出现在逐点对应里；位移恰好等于上限不算超限；配置数组置换后报告字节一致；共用同一复测点的缺配集合与邻居可由输入复算；仅因确认占用端点产生的缺配；错误版本（指纹不变）、篡改点值（保留旧指纹）、候选越界、已有报告不被覆盖；真实交付链路导出的视图端到端验收；4096 点规模两个用例的完整逐点结果与证据（`test_acceptance.py`）。
+- 补测工单：5×2 混合分类场景（禁入压过通行、同批多 track 只算一批、z 恰为上界与网格外点不计入）开一单并在通道被禁入后拆成两单，逐单核对矩形实际覆盖的格子；角相接不并单、仅通行分量不出单、零工单正常；同指纹不同版本、保留指纹篡改点表、方案矩形越界、矩形超量、非法网格/高程带/批数均被拒；输入重排后报告字节一致；已有报告不被覆盖、输出不得指向输入；真实交付链路导出的视图端到端派单；10^9×10^9 容量两用的完整矩形核对（在网格内、不相交、不覆盖禁入或通道、面积与精确格数一致）（`test_resurvey.py`）。
 
-源码入口为 `src/camera_tracks/service.py`（单次重建）、`src/camera_tracks/upstream.py`、`downstream.py`（交付链路）与 `src/camera_tracks/accept.py`、`matching.py`（验收）；测试在 `tests/`。业务字段、身份、单位、界限和失败约定见 [数据契约](docs/contract.md)、[交付契约](docs/delivery.md) 与 [验收契约](docs/acceptance.md)。样例全部为原创合成数据，见 [样例来源](fixtures/SOURCES.md)，源码和样例采用MIT许可。
+源码入口为 `src/camera_tracks/service.py`（单次重建）、`src/camera_tracks/upstream.py`、`downstream.py`（交付链路）、`src/camera_tracks/accept.py`、`matching.py`（验收）与 `src/camera_tracks/resurvey.py`（补测工单）；测试在 `tests/`。业务字段、身份、单位、界限和失败约定见 [数据契约](docs/contract.md)、[交付契约](docs/delivery.md)、[验收契约](docs/acceptance.md) 与 [补测工单契约](docs/resurvey.md)。样例全部为原创合成数据，见 [样例来源](fixtures/SOURCES.md)，源码和样例采用MIT许可。
 
 ## 当前边界
 
@@ -92,3 +107,5 @@ camera-tracks accept --baseline VIEW1.json --resurvey VIEW2.json \
 交付链路不实现网络同步、多写者调度或下游跨多版本跳跃；落后多轮时须按序补齐相邻包。两侧各为一个本地 JSON 状态文件，由命令行独占读写。
 
 验收命令只读输入、不做坐标拟合与点表回写，不自动匹配标签；一个配置处理一个验收区，候选与确认完全来自现场输入。
+
+补测工单命令只读输入、不重建三维点、不推断不同测次的点对应；一个方案处理一个区域，矩形列表完全来自现场输入，工单只描述本轮补测范围，不调度人员或设备。

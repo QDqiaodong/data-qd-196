@@ -17,6 +17,7 @@ Additional subcommands provide the offline calibration/delivery workflow::
     camera-tracks view    --store DOWNSTREAM_STATE.json --sequence S --track TRACK
     camera-tracks accept  --baseline VIEW.json --resurvey VIEW.json \
                           --config ZONE.json --output REPORT.json
+    camera-tracks resurvey --view VIEW.json --plan PLAN.json --output REPORT.json
 
 All commands print one JSON object to standard output on success and a
 readable ``error: ...`` line to standard error with exit status 2 on failure.
@@ -26,10 +27,12 @@ import argparse
 import json
 import sys
 
-from . import accept, downstream, io, upstream
+from . import accept, downstream, io, resurvey, upstream
 from .service import process
 
-SUBCOMMANDS = ("build", "correct", "query", "export", "apply", "view", "accept")
+SUBCOMMANDS = (
+    "build", "correct", "query", "export", "apply", "view", "accept", "resurvey",
+)
 
 
 class _Parser(argparse.ArgumentParser):
@@ -135,6 +138,16 @@ def _accept(argv):
     return 0
 
 
+def _resurvey(argv):
+    parser = _Parser(prog="camera-tracks resurvey")
+    parser.add_argument("--view", required=True)
+    parser.add_argument("--plan", required=True)
+    parser.add_argument("--output", required=True)
+    args = parser.parse_args(argv)
+    _emit(resurvey.run(args.view, args.plan, args.output))
+    return 0
+
+
 _HANDLERS = {
     "build": _build,
     "correct": _correct,
@@ -143,6 +156,7 @@ _HANDLERS = {
     "apply": _apply,
     "view": _view,
     "accept": _accept,
+    "resurvey": _resurvey,
 }
 
 
@@ -154,7 +168,7 @@ def main(argv=None):
         if argv and argv[0] in ("-h", "--help"):
             print(
                 "usage: camera-tracks --source INPUT --output REPORT\n"
-                "       camera-tracks {build,correct,query,export,apply,view,accept} ..."
+                "       camera-tracks {build,correct,query,export,apply,view,accept,resurvey} ..."
             )
             return 0
         return _legacy(argv)

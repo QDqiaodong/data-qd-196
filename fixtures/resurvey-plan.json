@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "kind": "camera-tracks-resurvey-plan",
+  "zone_id": "zone-196-yard",
+  "view": {
+    "dataset_id": "survey-196",
+    "version": 0,
+    "fingerprint": "7d617dc68146350ecbe1ca193bd08c6368ab2184ecc061479842b05fcbb98544"
+  },
+  "grid": {
+    "x0": "0",
+    "y0": "0",
+    "cell_size": "1",
+    "columns": 4,
+    "rows": 4
+  },
+  "z_min": "0",
+  "z_max": "10",
+  "required_sequences": 3,
+  "pass_rectangles": [
+    [3, 0, 4, 1]
+  ],
+  "forbidden_rectangles": [
+    [0, 3, 1, 4]
+  ]
+}

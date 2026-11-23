@@ -5,3 +5,5 @@
 `fixtures/build.json` 与 `fixtures/correction.json` 同为作者自制合成数据：前者是离线交付链路的三批（采集序号 10、20、30）样例数据集，后者把右相机第一行末项由 -1 改为 +1 以演示负深度撤回。遵循本仓 MIT 许可。
 
 `fixtures/accept-resurvey-build.json`、`fixtures/accept-zone.json` 与 `fixtures/accept-zone-confirmed.json` 同为作者自制合成数据：复测数据集把三批点移到 `[3,1,4]`、`[2,1,4]`、`[9,1,4]`，两份验收区配置给出九个候选对（确认版追加一条 `(30, marker)` 人工确认），端点指纹由本仓交付链路实际导出。遵循本仓 MIT 许可。
+
+`fixtures/resurvey-plan.json` 同为作者自制合成数据：4×4 单位网格、高程带 `[0,10)`、每格 3 批、一格免测通道与一格禁入的补测区域方案，端点指纹由本仓交付链路对 `fixtures/build.json` 实际导出。遵循本仓 MIT 许可。
