@@ -106,3 +106,28 @@ def publish_new(path, payload):
     finally:
         if temporary is not None:
             temporary.unlink(missing_ok=True)
+
+
+def publish_new_stream(path, write):
+    """Create one new output file from a streaming writer, never overwriting.
+
+    ``write`` receives a binary file object.  The bytes are fsynced before
+    the temporary file is linked into place, so a failure leaves neither a
+    partial target nor a partially written package at the target path.
+    """
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            dir=target.parent, prefix=".publish-", delete=False
+        ) as f:
+            temporary = Path(f.name)
+            write(f)
+            f.flush()
+            os.fsync(f.fileno())
+        os.link(temporary, target)
+        _fsync_directory(target.parent)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)

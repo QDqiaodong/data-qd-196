@@ -18,6 +18,8 @@ Additional subcommands provide the offline calibration/delivery workflow::
     camera-tracks accept  --baseline VIEW.json --resurvey VIEW.json \
                           --config ZONE.json --output REPORT.json
     camera-tracks resurvey --view VIEW.json --plan PLAN.json --output REPORT.json
+    camera-tracks earthwork --old OLD_VIEW.json --new NEW_VIEW.json \
+                            --plan ZONE.json --output PACKAGE.json
 
 All commands print one JSON object to standard output on success and a
 readable ``error: ...`` line to standard error with exit status 2 on failure.
@@ -27,11 +29,12 @@ import argparse
 import json
 import sys
 
-from . import accept, downstream, io, resurvey, upstream
+from . import accept, downstream, earthwork, io, resurvey, upstream
 from .service import process
 
 SUBCOMMANDS = (
     "build", "correct", "query", "export", "apply", "view", "accept", "resurvey",
+    "earthwork",
 )
 
 
@@ -148,6 +151,17 @@ def _resurvey(argv):
     return 0
 
 
+def _earthwork(argv):
+    parser = _Parser(prog="camera-tracks earthwork")
+    parser.add_argument("--old", required=True)
+    parser.add_argument("--new", required=True)
+    parser.add_argument("--plan", required=True)
+    parser.add_argument("--output", required=True)
+    args = parser.parse_args(argv)
+    _emit(earthwork.run(args.old, args.new, args.plan, args.output))
+    return 0
+
+
 _HANDLERS = {
     "build": _build,
     "correct": _correct,
@@ -157,6 +171,7 @@ _HANDLERS = {
     "view": _view,
     "accept": _accept,
     "resurvey": _resurvey,
+    "earthwork": _earthwork,
 }
 
 
@@ -168,7 +183,7 @@ def main(argv=None):
         if argv and argv[0] in ("-h", "--help"):
             print(
                 "usage: camera-tracks --source INPUT --output REPORT\n"
-                "       camera-tracks {build,correct,query,export,apply,view,accept,resurvey} ..."
+                "       camera-tracks {build,correct,query,export,apply,view,accept,resurvey,earthwork} ..."
             )
             return 0
         return _legacy(argv)

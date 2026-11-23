@@ -26,6 +26,7 @@ PYTHONPATH=src python3 -m unittest discover -s tests -v
 PYTHONPATH=src python3 -m camera_tracks.cli --source fixtures/input.json --output run/demo.json
 ./examples/delivery.sh            # 完整交付走查，产物在 run/example/
 ./examples/resurvey.sh            # 补测工单走查，产物在 run/resurvey/
+./examples/earthwork.sh           # 土方包走查，产物在 run/earthwork/
 ```
 
 样例重建 XYZ = [2,1,4]，两台相机回投影误差均为0。
@@ -84,9 +85,23 @@ camera-tracks resurvey --view VIEW.json --plan PLAN.json --output REPORT.json
 - 报告给出四类精确格数（十进制整数字符串）与每单的待补格数、最小外接格边界、标识格和精确待补范围（若干非空、两两不重叠的半开矩形，并集恰为本单待补格）；只置换输入数组或重排对象键不改变报告字节。只读输入、原子新建报告、绝不覆盖已有报告。
 - 10^9×10^9 网格、两万余障碍的容量样例实测约 0.36 s CPU、峰值 RSS 约 67 MiB（预算 20 s / 192 MiB），复现见 `python3 examples/resurvey_benchmark.py` 与 `./examples/resurvey.sh`。
 
+## 离线土方面叠算
+
+在交付视图之上离线结算道路整修前后的挖填方（[土方包契约](docs/earthwork.md)）：
+
+```sh
+camera-tracks earthwork --old OLD_VIEW.json --new NEW_VIEW.json \
+                        --plan ZONE.json --output PACKAGE.json
+```
+
+- 方案给出作业区 ID、矩形作业范围、两份 view 各自的 `dataset_id`、`version`、`fingerprint`（三者都须匹配，同指纹不能替代同版本），以及两侧各自的地面分块清单。每层至多 20,000 块，每块指定左下、右下、左上三个点身份；点身份存在时其 XY 必须精确等于声明角，缺测的角只吊销本块，且不隐瞒同块其他角的 XY 错误。
+- 每块以三点唯一决定的仿射高程面表示整块，不跨块连续、不外推。旧块与新块的正面积交叠是候选小片，只有两块锚点都完整时才结算；零线穿过小片时按精确平面差分别积分挖方与填方，从不用净高差或中心点正负。覆盖面积、挖填量与覆盖判断全用精确有理数。
+- 包逐片给出范围、两来源块 ID、四角高差、挖方、填方，并给出缺测块清单、已结算/未结算面积、挖填小计与 `complete`/`partial` 状态；未结算面积是作业区面积减已结算小片面积之和，不是两侧缺测面积相加。已结算小片超过 100,000 片时明确报错且不生成包。
+- 只读输入、原子新建包、拒绝已有目标与指向任一输入的目标；声明与点数组的排列、对象键顺序不改变包字节。317 条竖条铺 317×317 全部得到 100,489 片时拒绝；两条缺角剩 99,855 片发布、未结算 634 m²。逐片核对的 279² 批量样例实测约 4.2–4.7 s CPU、峰值 RSS 约 115 MiB（预算 20 s / 192 MiB），复现见 `python3 examples/earthwork_benchmark.py` 与 `./examples/earthwork.sh`。
+
 ## 已执行验证
 
-在本容器以 `PYTHONPATH=src python3 -m unittest discover -s tests -v` 实际运行 **95 项测试全部通过**，并运行 `examples/delivery.sh` 完成端到端交付走查（三条 `[2,1,4]` → 撤回 10、20 → 补回 20）、`examples/accept.sh` 完成验收走查（仅候选判 `fail` 且无法指认 → 确认 `(30,marker)` 后锁定超限点）、`examples/resurvey.sh` 完成补测工单走查（三点使 `(2,1)` 格达标，开出覆盖 13 个待补格的一单）。原基线的 5 项业务测试保持通过；`--source/--output` 报告与基线 HEAD 版本**字节一致**（已用 `git archive` 导出旧版对比）。
+在本容器以 `PYTHONPATH=src python3 -m unittest discover -s tests -v` 实际运行 **123 项测试全部通过**，并运行 `examples/delivery.sh` 完成端到端交付走查（三条 `[2,1,4]` → 撤回 10、20 → 补回 20）、`examples/accept.sh` 完成验收走查（仅候选判 `fail` 且无法指认 → 确认 `(30,marker)` 后锁定超限点）、`examples/resurvey.sh` 完成补测工单走查（三点使 `(2,1)` 格达标，开出覆盖 13 个待补格的一单）、`examples/earthwork.sh` 完成土方走查（旧块高 0、新块 `z = x − 3/2`，1 片、挖填各 `1/8`、未结算 2）。原基线的 5 项业务测试保持通过；`--source/--output` 报告与基线 HEAD 版本**字节一致**（已用 `git archive` 导出旧版对比）。
 
 覆盖重点：
 
@@ -96,9 +111,10 @@ camera-tracks resurvey --view VIEW.json --plan PLAN.json --output REPORT.json
 - 上游更正版本、change_id、查询与导出可见性一同生效或一同失败（`test_interrupt_before_correct_commit_keeps_version_and_export`、`test_interrupt_after_correct_commit_leaves_consistent_version`）。
 - 更正旧请求重试、未知/冲突更正、失败请求不占 ID、旧版重导字节一致、损坏/跳版/串数据集/基指纹不符不改变下游、原单次重建入口行为（`test_delivery.py`、`test_downstream.py`、`test_validation.py`、`test_legacy_cli.py`）。
 - 复测位移验收：同轴两点的四种对应恰有一个超限（各自不可判但整体 `fail`）；确认把 `[0,2]` 区间分别收敛到 `[0,0]`（签字）与 `[2,2]`（不合格）；候选中进不了任何完整对应的边不出现在逐点对应里；位移恰好等于上限不算超限；配置数组置换后报告字节一致；共用同一复测点的缺配集合与邻居可由输入复算；仅因确认占用端点产生的缺配；错误版本（指纹不变）、篡改点值（保留旧指纹）、候选越界、已有报告不被覆盖；真实交付链路导出的视图端到端验收；4096 点规模两个用例的完整逐点结果与证据（`test_acceptance.py`）。
+- 土方包：主样例 `[0,0,3,1]` 旧块 `[0,0,2,1]` 高 0、新块 `[1,0,3,1]` 在 `z = x − 3/2` 上，只出 1 片、已结算 1、未结算 2、挖填各 `1/8`；删去新块一角后包空、未结算升到 3 并点名缺角，另一组验证不受影响的小片仍输出；同高整片（`complete`、挖填均 0）、恰好共边不出片、零线过角点分成 1/6 与 1/6、同层重叠（含缺测块）被拒、缺一角时另一角 XY 错误仍被拒、同指纹不同版本被拒、输入重排后字节一致、已有目标与输入目标被拒、发布中途失败不留目标或临时文件；317×317 竖横条全齐 100,489 片与只缺一个孤锚都拒绝，两处缺角则 99,855 片发布且未结算 634；140×140 批量逐片核对 77,841 个小片的范围与两来源块、已结算 279²L²、未结算 (281²−279²)L²、填方 2×279²L²，打乱声明后包字节一致；随机切分的双侧分块与稠密采样独立对照，累计挖填在 1% 尺度内一致且面积逐片核尽；真实交付链路导出的两份视图端到端结算并保留原单次重建与点表消费回归（`test_earthwork.py`）。
 - 补测工单：5×2 混合分类场景（禁入压过通行、同批多 track 只算一批、z 恰为上界与网格外点不计入）开一单并在通道被禁入后拆成两单，逐单核对矩形实际覆盖的格子；角相接不并单、仅通行分量不出单、零工单正常；同指纹不同版本、保留指纹篡改点表、方案矩形越界、矩形超量、非法网格/高程带/批数均被拒；输入重排后报告字节一致；已有报告不被覆盖、输出不得指向输入；真实交付链路导出的视图端到端派单；10^9×10^9 容量两用的完整矩形核对（在网格内、不相交、不覆盖禁入或通道、面积与精确格数一致）（`test_resurvey.py`）。
 
-源码入口为 `src/camera_tracks/service.py`（单次重建）、`src/camera_tracks/upstream.py`、`downstream.py`（交付链路）、`src/camera_tracks/accept.py`、`matching.py`（验收）与 `src/camera_tracks/resurvey.py`（补测工单）；测试在 `tests/`。业务字段、身份、单位、界限和失败约定见 [数据契约](docs/contract.md)、[交付契约](docs/delivery.md)、[验收契约](docs/acceptance.md) 与 [补测工单契约](docs/resurvey.md)。样例全部为原创合成数据，见 [样例来源](fixtures/SOURCES.md)，源码和样例采用MIT许可。
+源码入口为 `src/camera_tracks/service.py`（单次重建）、`src/camera_tracks/upstream.py`、`downstream.py`（交付链路）、`src/camera_tracks/accept.py`、`matching.py`（验收）、`src/camera_tracks/resurvey.py`（补测工单）与 `src/camera_tracks/earthwork.py`（土方包）；测试在 `tests/`。业务字段、身份、单位、界限和失败约定见 [数据契约](docs/contract.md)、[交付契约](docs/delivery.md)、[验收契约](docs/acceptance.md)、[补测工单契约](docs/resurvey.md) 与 [土方包契约](docs/earthwork.md)。样例全部为原创合成数据，见 [样例来源](fixtures/SOURCES.md)，源码和样例采用MIT许可。
 
 ## 当前边界
 
@@ -109,3 +125,5 @@ camera-tracks resurvey --view VIEW.json --plan PLAN.json --output REPORT.json
 验收命令只读输入、不做坐标拟合与点表回写，不自动匹配标签；一个配置处理一个验收区，候选与确认完全来自现场输入。
 
 补测工单命令只读输入、不重建三维点、不推断不同测次的点对应；一个方案处理一个区域，矩形列表完全来自现场输入，工单只描述本轮补测范围，不调度人员或设备。
+
+土方命令只读输入、不重建三维点、不做跨测次的点对应；块高程面完全由各块三个锚点决定，缺锚点不外推、不插值、不借相邻块补齐；一个方案处理一个矩形作业区，多区结算由调用方逐区运行。

@@ -1,0 +1,36 @@
+{
+  "dataset_id": "earthwork-old",
+  "fingerprint": "d13a7f165e8db4abb3e66c96d4816b6f4585d32f331bd3110de6719362986032",
+  "kind": "camera-tracks-view",
+  "points": [
+    {
+      "sequence": 10,
+      "track_id": "ground",
+      "xyz": [
+        "0",
+        "0",
+        "0"
+      ]
+    },
+    {
+      "sequence": 20,
+      "track_id": "ground",
+      "xyz": [
+        "2",
+        "0",
+        "0"
+      ]
+    },
+    {
+      "sequence": 30,
+      "track_id": "ground",
+      "xyz": [
+        "0",
+        "1",
+        "0"
+      ]
+    }
+  ],
+  "schema_version": 1,
+  "version": 0
+}

@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "kind": "camera-tracks-earthwork-plan",
+  "zone_id": "zone-196-yard",
+  "zone": [
+    0,
+    0,
+    3,
+    1
+  ],
+  "old": {
+    "dataset_id": "earthwork-old",
+    "version": 0,
+    "fingerprint": "d13a7f165e8db4abb3e66c96d4816b6f4585d32f331bd3110de6719362986032",
+    "blocks": [
+      {
+        "block_id": "old-a",
+        "area": [
+          0,
+          0,
+          2,
+          1
+        ],
+        "lower_left": {
+          "sequence": 10,
+          "track_id": "ground"
+        },
+        "lower_right": {
+          "sequence": 20,
+          "track_id": "ground"
+        },
+        "upper_left": {
+          "sequence": 30,
+          "track_id": "ground"
+        }
+      }
+    ]
+  },
+  "new": {
+    "dataset_id": "earthwork-new",
+    "version": 0,
+    "fingerprint": "af6d383663fa4ace552a7dced43c71c3f6386162fc20556a571be4d6e6dbbd98",
+    "blocks": [
+      {
+        "block_id": "new-b",
+        "area": [
+          1,
+          0,
+          3,
+          1
+        ],
+        "lower_left": {
+          "sequence": 10,
+          "track_id": "ground"
+        },
+        "lower_right": {
+          "sequence": 20,
+          "track_id": "ground"
+        },
+        "upper_left": {
+          "sequence": 30,
+          "track_id": "ground"
+        }
+      }
+    ]
+  }
+}

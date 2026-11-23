@@ -1,0 +1,132 @@
+{
+  "dataset_id": "earthwork-new",
+  "max_reprojection_error": "0",
+  "cameras": [
+    {
+      "id": "left",
+      "projection": [
+        [
+          "1",
+          "0",
+          "0",
+          "0"
+        ],
+        [
+          "0",
+          "1",
+          "0",
+          "0"
+        ],
+        [
+          "0",
+          "0",
+          "0",
+          "1"
+        ]
+      ]
+    },
+    {
+      "id": "right",
+      "projection": [
+        [
+          "1",
+          "0",
+          "1",
+          "0"
+        ],
+        [
+          "0",
+          "1",
+          "0",
+          "0"
+        ],
+        [
+          "0",
+          "0",
+          "0",
+          "2"
+        ]
+      ]
+    }
+  ],
+  "batches": [
+    {
+      "sequence": 10,
+      "tracks": [
+        {
+          "id": "ground",
+          "observations": [
+            {
+              "camera_id": "left",
+              "xy": [
+                "1",
+                "0"
+              ],
+              "weight": "1"
+            },
+            {
+              "camera_id": "right",
+              "xy": [
+                "0.25",
+                "0"
+              ],
+              "weight": "1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "sequence": 20,
+      "tracks": [
+        {
+          "id": "ground",
+          "observations": [
+            {
+              "camera_id": "left",
+              "xy": [
+                "3",
+                "0"
+              ],
+              "weight": "1"
+            },
+            {
+              "camera_id": "right",
+              "xy": [
+                "2.25",
+                "0"
+              ],
+              "weight": "1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "sequence": 30,
+      "tracks": [
+        {
+          "id": "ground",
+          "observations": [
+            {
+              "camera_id": "left",
+              "xy": [
+                "1",
+                "1"
+              ],
+              "weight": "1"
+            },
+            {
+              "camera_id": "right",
+              "xy": [
+                "0.25",
+                "0.5"
+              ],
+              "weight": "1"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
