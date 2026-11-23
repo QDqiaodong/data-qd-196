@@ -20,6 +20,8 @@ Additional subcommands provide the offline calibration/delivery workflow::
     camera-tracks resurvey --view VIEW.json --plan PLAN.json --output REPORT.json
     camera-tracks earthwork --old OLD_VIEW.json --new NEW_VIEW.json \
                             --plan ZONE.json --output PACKAGE.json
+    camera-tracks merge --plan MERGE_PLAN.json --output MERGE_PACKAGE.json \
+                        --view FRAGMENT_ID=VIEW.json [--view ...]
 
 All commands print one JSON object to standard output on success and a
 readable ``error: ...`` line to standard error with exit status 2 on failure.
@@ -29,12 +31,12 @@ import argparse
 import json
 import sys
 
-from . import accept, downstream, earthwork, io, resurvey, upstream
+from . import accept, downstream, earthwork, io, merge, resurvey, upstream
 from .service import process
 
 SUBCOMMANDS = (
     "build", "correct", "query", "export", "apply", "view", "accept", "resurvey",
-    "earthwork",
+    "earthwork", "merge",
 )
 
 
@@ -162,6 +164,33 @@ def _earthwork(argv):
     return 0
 
 
+def _merge(argv):
+    parser = _Parser(prog="camera-tracks merge")
+    parser.add_argument("--plan", required=True)
+    parser.add_argument("--output", required=True)
+    parser.add_argument(
+        "--view",
+        action="append",
+        default=[],
+        metavar="FRAGMENT_ID=PATH",
+        help="bind a view export to one endpoint fragment; repeat per fragment",
+    )
+    args = parser.parse_args(argv)
+    input_map = {}
+    for binding in args.view:
+        if "=" not in binding:
+            raise ValueError("--view bindings must look like FRAGMENT_ID=PATH")
+        fragment_id, path = binding.split("=", 1)
+        fragment_id = fragment_id.strip()
+        if not fragment_id:
+            raise ValueError("--view binding has an empty fragment id")
+        if fragment_id in input_map:
+            raise ValueError(f"duplicate --view binding for fragment {fragment_id!r}")
+        input_map[fragment_id] = path
+    _emit(merge.run(args.plan, input_map, args.output))
+    return 0
+
+
 _HANDLERS = {
     "build": _build,
     "correct": _correct,
@@ -172,6 +201,7 @@ _HANDLERS = {
     "accept": _accept,
     "resurvey": _resurvey,
     "earthwork": _earthwork,
+    "merge": _merge,
 }
 
 
@@ -183,7 +213,7 @@ def main(argv=None):
         if argv and argv[0] in ("-h", "--help"):
             print(
                 "usage: camera-tracks --source INPUT --output REPORT\n"
-                "       camera-tracks {build,correct,query,export,apply,view,accept,resurvey,earthwork} ..."
+                "       camera-tracks {build,correct,query,export,apply,view,accept,resurvey,earthwork,merge} ..."
             )
             return 0
         return _legacy(argv)

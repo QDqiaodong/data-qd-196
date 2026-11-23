@@ -14,6 +14,7 @@ CORRECT_AFTER_COMMIT = "correct-after-commit"
 EXPORT_BEFORE_WRITE = "export-before-write"
 APPLY_BEFORE_COMMIT = "apply-before-commit"
 APPLY_AFTER_COMMIT = "apply-after-commit"
+MERGE_BEFORE_WRITE = "merge-before-write"
 
 _NAMES = {
     BUILD_BEFORE_COMMIT,
@@ -22,6 +23,7 @@ _NAMES = {
     EXPORT_BEFORE_WRITE,
     APPLY_BEFORE_COMMIT,
     APPLY_AFTER_COMMIT,
+    MERGE_BEFORE_WRITE,
 }
 
 
