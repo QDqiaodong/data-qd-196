@@ -15,6 +15,9 @@ EXPORT_BEFORE_WRITE = "export-before-write"
 APPLY_BEFORE_COMMIT = "apply-before-commit"
 APPLY_AFTER_COMMIT = "apply-after-commit"
 MERGE_BEFORE_WRITE = "merge-before-write"
+BENCH_BEFORE_COMMIT = "benchmark-before-commit"
+BENCH_AFTER_COMMIT = "benchmark-after-commit"
+BENCH_EXPORT_BEFORE_WRITE = "benchmark-export-before-write"
 
 _NAMES = {
     BUILD_BEFORE_COMMIT,
@@ -24,6 +27,9 @@ _NAMES = {
     APPLY_BEFORE_COMMIT,
     APPLY_AFTER_COMMIT,
     MERGE_BEFORE_WRITE,
+    BENCH_BEFORE_COMMIT,
+    BENCH_AFTER_COMMIT,
+    BENCH_EXPORT_BEFORE_WRITE,
 }
 
 

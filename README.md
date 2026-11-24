@@ -114,11 +114,40 @@ camera-tracks merge --plan MERGE_PLAN.json --output PACKAGE.json \
 - 归并点为局部 XYZ（米）加 T（米），全程整数微米与 `Fraction` 精确有理文本，身份保留为 `(fragment_id, sequence, track_id)`。包为独立 `camera-tracks-merge-package`，不改原生 view 的生成与指纹；只读输入、原子新建、拒绝已有目标与输入目标，重排声明数组、对象键或点行不改变包字节。
 - 60000 分片、60002 条联测、20001 个可行舍弃的验收批量实测约 1.9 s CPU、峰值 RSS 约 100 MiB（预算 20 s / 256 MiB），复现见 `python3 examples/merge_benchmark.py` 与 `./examples/merge.sh`。
 
+## 离线训练材料与盲测基准发布
+
+在交付视图之上离线发布训练材料、签发盲测题本、登记预测，并在迟到的采集来源关联出现时审计旧成绩、撤销受影响题本（[基准发布契约](docs/benchmark.md)）：
+
+```sh
+camera-tracks bench --config CONFIG.json --project PROJECT.json \
+                    --view DATASET_ID=VIEW.json [--view ...]
+camera-tracks bench-release          --project PROJECT.json --request RELEASE.json
+camera-tracks bench-issue            --project PROJECT.json --request ISSUE.json
+camera-tracks bench-relate           --project PROJECT.json --request RELATE.json
+camera-tracks bench-score            --project PROJECT.json --request SCORE.json
+camera-tracks bench-scores           --project PROJECT.json [--booklet ID]
+camera-tracks bench-audit            --project PROJECT.json [--booklet ID]
+camera-tracks bench-status           --project PROJECT.json
+camera-tracks bench-export-training  --project PROJECT.json --id ID --output OUT.json
+camera-tracks bench-export-booklet   --project PROJECT.json --id ID --output OUT.json
+```
+
+- 初始化绑定 1..8 份现有 `view`，各自 `dataset_id` 不同，各声明完整 `dataset_id`/`version`/`fingerprint`；逐份重算点表指纹，三字段都须匹配。坐标与来源端点冻结进项目，原文件可删。同 `dataset_id` 同名 `sequence` 的点无条件同组；复核记录无向、跨批、跨数据集、可传递；不同批不会因坐标或 track 同名自动相连。项目累计 80,000 点、120,000 条显式关系；一次关系追加整批原子（未知/重复/自连/批内任一非法都整批拒绝）。
+- 训练发布按清单交付完整 XYZ 与来源端点，不额外下发同组点，但整组视为已暴露；发布即生效，与是否有人下载无关。题本只给身份、XY、来源端点与误差限，不下发真实 Z。任一点已暴露即拒绝签发整个题本。两者为独立于 `view` 的稳定 UTF-8 JSON，以字节 SHA-256 标识，历史导出永远按原字节重领。
+- 评分绑定题本 ID、题本文件 SHA-256 与预测 ID，覆盖题本全部点、每点恰一项；逐点 `|预测−真值| ≤ 误差限` 判通过（等于算通过），只回通过点数/总数与身份，不下发真值。错误指纹、缺项、多项、重复、非法数字都不占预测 ID。
+- 每次首次成功推进一个修订号，`op_id` 全局幂等：同 ID 同请求重投原样返回首次回执、不推进修订（哪怕题本已撤销），同 ID 不同内容拒绝。请求相等忽略键序、清单排列与无向端点顺序，数字按精确值比较。
+- 追加关系或发布材料后，任一点进入已暴露组的题本整本撤销：冻结首次撤销的修订号、导致操作 ID 与一组当时已连通的待测点/已发布训练点/训练发布 ID（后续关系绝不改写），其旧成绩退出当前可比较表；无关题本成绩照常可取、仍可登记。审计独立取回原成绩与撤销依据、绝不清零、也不混入可比较成绩。训练发布/关系追加与引发的撤销一次原子生效。
+- 只读导出拒绝覆盖既有路径、不暴露半文件、失败不撤销已登记材料；程序重开后据持久状态恢复；`CAMERA_TRACKS_FAULT=benchmark-before-commit|benchmark-after-commit|benchmark-export-before-write` 用于验证事务边界。
+
+4 份各 100 批、每批 200 点（合计 80,000 点）的验收批量走查：初始化 → 为第 2、3 份 view 各签发 4096 点题本并登记预测 → 只发布第 1 份 view 的 1 个点 → 追加连接第 1、2 份 view 代表点的边，第 2 份题本撤销、第 3 份仍可取用；件内不含真实 Z，重导字节一致。单进程 CPython 串行命令实测总 CPU 约 7.7 s、各命令峰值 RSS ≤ 91 MiB（预算 45 s / 256 MiB），复现见 `python3 examples/bench_benchmark.py` 与 `./examples/bench.sh`。
+
 ## 已执行验证
 
-在本容器以 `PYTHONPATH=src python3 -m unittest discover -s tests -v` 实际运行 **150 项测试全部通过**（原 123 项 + 坐标归并 27 项），并运行 `examples/delivery.sh` 完成端到端交付走查（三条 `[2,1,4]` → 撤回 10、20 → 补回 20）、`examples/accept.sh` 完成验收走查（仅候选判 `fail` 且无法指认 → 确认 `(30,marker)` 后锁定超限点）、`examples/resurvey.sh` 完成补测工单走查（三点使 `(2,1)` 格达标，开出覆盖 13 个待补格的一单）、`examples/earthwork.sh` 完成土方走查（旧块高 0、新块 `z = x − 3/2`，1 片、挖填各 `1/8`、未结算 2）、`examples/merge.sh` 完成坐标归并走查（三角网全暂定扣留 A/B → 锁定 R→A 后放行 A → R→B 改 2 μm 后全网一致）。原基线的 5 项业务测试保持通过；`--source/--output` 报告与基线 HEAD 版本**字节一致**（已用 `git archive` 导出旧版对比）。
+在本容器以 `PYTHONPATH=src python3 -m unittest discover -s tests -v` 实际运行 **180 项测试全部通过**（原 150 项 + 基准发布 30 项），并运行 `examples/delivery.sh` 完成端到端交付走查（三条 `[2,1,4]` → 撤回 10、20 → 补回 20）、`examples/accept.sh` 完成验收走查（仅候选判 `fail` 且无法指认 → 确认 `(30,marker)` 后锁定超限点）、`examples/resurvey.sh` 完成补测工单走查（三点使 `(2,1)` 格达标，开出覆盖 13 个待补格的一单）、`examples/earthwork.sh` 完成土方走查（旧块高 0、新块 `z = x − 3/2`，1 片、挖填各 `1/8`、未结算 2）、`examples/merge.sh` 完成坐标归并走查（三角网全暂定扣留 A/B → 锁定 R→A 后放行 A → R→B 改 2 μm 后全网一致）、`examples/bench.sh` 完成训练/盲测走查（H 恰在限内通过、发布 A0 后 A1 题本被拒、B1—H 迟到关联使 H 退出选型而 U 照常评分、撤销后题本按原字节重领且不含真实 Z）。原基线的 5 项业务测试保持通过；`--source/--output` 报告与基线 HEAD 版本**字节一致**（已用 `git archive` 导出旧版对比）。
 
 覆盖重点：
+
+- 训练材料与盲测基准：同批 A0/A1 与 B0/B1、独立批 H/U 的验收走查（H 恰在误差限通过、发布 A0 后无下载两份成绩仍可用、A1 单独题本被拒、删源文件后追加 A1—B0 再 B1—H 只使 H 退出选型、U 照常评分）；题本撤销后按原字节重领且不含真实 Z、历史成绩与回执不变；新训练发布触发 U 撤销、两次旧操作重放取回各自首次撤销清单互不串改、证据在后续关系下不改写；同指纹错版本、篡改点表、错误题本指纹、非法关系整批无效、请求重排幂等；`benchmark-before-commit`/`benchmark-after-commit` 两条真实中断边界；4×100×200 容量批量的第 2 份题本撤销、第 3 份仍可选型并完整核对两件题本与历史回执（`test_benchmark.py`）。
 
 - 负深度更正：受影响两点仍有唯一零残差解但深度为负，增量只撤回 `(10,marker)`、`(20,marker)`；随后只恢复 `[20,30]`，增量只补回 `(20,marker)`，不为 30 发伪更新（`test_negative_depth_correction_retracts_two_points_then_restores_one`）。
 - 真正改变 XYZ 的合格更新，以及无记录的增量仍推进版本（`test_xyz_update_and_empty_delta_both_advance_versions`）。
@@ -130,7 +159,7 @@ camera-tracks merge --plan MERGE_PLAN.json --output PACKAGE.json \
 - 补测工单：5×2 混合分类场景（禁入压过通行、同批多 track 只算一批、z 恰为上界与网格外点不计入）开一单并在通道被禁入后拆成两单，逐单核对矩形实际覆盖的格子；角相接不并单、仅通行分量不出单、零工单正常；同指纹不同版本、保留指纹篡改点表、方案矩形越界、矩形超量、非法网格/高程带/批数均被拒；输入重排后报告字节一致；已有报告不被覆盖、输出不得指向输入；真实交付链路导出的视图端到端派单；10^9×10^9 容量两用的完整矩形核对（在网格内、不相交、不覆盖禁入或通道、面积与精确格数一致）（`test_resurvey.py`）。
 - 坐标归并：验收三角网三阶段（全暂定三条候选且 A/B 扣留、R→A 复核后只剩两条候选且 A 放行、R→B 改 2 μm 后全网一致零候选），每条扣留证据用独立 BFS 重解复算；平行矛盾联测、反向输入取负、已复核记录绝不可舍弃、单桥不可弃、两个不共边失闭环无单条修复且全包不发点；错误端点（含同指纹不同版本）、篡改被扣留分片点表、缺/多 view、未连通、重复 ID 与非法结构均按输入错误拒绝；重排声明/键/点行包字节一致、已有目标与输入目标拒绝、`merge-before-write` 注入失败不留半包、同名点跨分片不合并、真实 build/export/apply/view 链路端到端归并；800 个随机小图对全量逐舍弃 BFS 暴力核对候选集合、平移量与逐分片决定（`test_merge.py`，另含 60000 分片批量的完整候选/证据核对与 CPU、RSS 预算）。
 
-源码入口为 `src/camera_tracks/service.py`（单次重建）、`src/camera_tracks/upstream.py`、`downstream.py`（交付链路）、`src/camera_tracks/accept.py`、`matching.py`（验收）、`src/camera_tracks/resurvey.py`（补测工单）、`src/camera_tracks/earthwork.py`（土方包）与 `src/camera_tracks/merge.py`（坐标归并）；测试在 `tests/`。业务字段、身份、单位、界限和失败约定见 [数据契约](docs/contract.md)、[交付契约](docs/delivery.md)、[验收契约](docs/acceptance.md)、[补测工单契约](docs/resurvey.md)、[土方包契约](docs/earthwork.md) 与 [坐标归并契约](docs/merge.md)。样例全部为原创合成数据，见 [样例来源](fixtures/SOURCES.md)，源码和样例采用MIT许可。
+源码入口为 `src/camera_tracks/service.py`（单次重建）、`src/camera_tracks/upstream.py`、`downstream.py`（交付链路）、`src/camera_tracks/accept.py`、`matching.py`（验收）、`src/camera_tracks/resurvey.py`（补测工单）、`src/camera_tracks/earthwork.py`（土方包）、`src/camera_tracks/merge.py`（坐标归并）与 `src/camera_tracks/benchmark.py`（训练材料与盲测基准发布）；测试在 `tests/`。业务字段、身份、单位、界限和失败约定见 [数据契约](docs/contract.md)、[交付契约](docs/delivery.md)、[验收契约](docs/acceptance.md)、[补测工单契约](docs/resurvey.md)、[土方包契约](docs/earthwork.md) 、[坐标归并契约](docs/merge.md) 与 [基准发布契约](docs/benchmark.md)。样例全部为原创合成数据，见 [样例来源](fixtures/SOURCES.md)，源码和样例采用MIT许可。
 
 ## 当前边界
 
@@ -145,3 +174,5 @@ camera-tracks merge --plan MERGE_PLAN.json --output PACKAGE.json \
 土方命令只读输入、不重建三维点、不做跨测次的点对应；块高程面完全由各块三个锚点决定，缺锚点不外推、不插值、不借相邻块补齐；一个方案处理一个矩形作业区，多区结算由调用方逐区运行。
 
 坐标归并命令只读方案与 view、不回写任何原生视图或状态库；一条暂定联测要么整体成立要么整体舍弃，不做平差、部分分量修复或两条联合修复；一个方案处理一个基准与一张联测网，多基准工程由调用方先统一基准后逐网运行。
+
+基准发布命令只处理登记到本流程的材料和关联，不推断外部训练行为、不扫描外部文件，也不阻止对导出文件的本机直接访问（评分为本地评估员操作，无账户、无网络服务）；不回写任何 view、交付库或点表，不做坐标回写与跨测次点对应；一个项目处理一套材料与关联。

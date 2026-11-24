@@ -22,6 +22,14 @@ Additional subcommands provide the offline calibration/delivery workflow::
                             --plan ZONE.json --output PACKAGE.json
     camera-tracks merge --plan MERGE_PLAN.json --output MERGE_PACKAGE.json \
                         --view FRAGMENT_ID=VIEW.json [--view ...]
+    camera-tracks bench --config CONFIG.json --project PROJECT.json \
+                        --view DATASET_ID=VIEW.json [--view ...]
+    camera-tracks bench-release|bench-issue|bench-relate|bench-score \
+                        --project PROJECT.json --request REQUEST.json
+    camera-tracks bench-scores|bench-audit [--booklet ID] --project PROJECT.json
+    camera-tracks bench-status --project PROJECT.json
+    camera-tracks bench-export-training|bench-export-booklet \
+                        --project PROJECT.json --id ID --output OUT.json
 
 All commands print one JSON object to standard output on success and a
 readable ``error: ...`` line to standard error with exit status 2 on failure.
@@ -31,12 +39,14 @@ import argparse
 import json
 import sys
 
-from . import accept, downstream, earthwork, io, merge, resurvey, upstream
+from . import accept, benchmark, downstream, earthwork, io, merge, resurvey, upstream
 from .service import process
 
 SUBCOMMANDS = (
     "build", "correct", "query", "export", "apply", "view", "accept", "resurvey",
-    "earthwork", "merge",
+    "earthwork", "merge", "bench", "bench-release", "bench-issue", "bench-relate",
+    "bench-score", "bench-scores", "bench-audit", "bench-status",
+    "bench-export-training", "bench-export-booklet",
 )
 
 
@@ -191,7 +201,117 @@ def _merge(argv):
     return 0
 
 
+def _bench(argv):
+    parser = _Parser(prog="camera-tracks bench")
+    parser.add_argument("--config", required=True)
+    parser.add_argument("--project", required=True)
+    parser.add_argument(
+        "--view", action="append", default=[], metavar="DATASET_ID=PATH",
+        help="bind one configured dataset to its view export; repeat per dataset",
+    )
+    args = parser.parse_args(argv)
+    input_map = {}
+    for binding in args.view:
+        if "=" not in binding:
+            raise ValueError("--view bindings must look like DATASET_ID=PATH")
+        dataset_id, path = binding.split("=", 1)
+        dataset_id = dataset_id.strip()
+        if not dataset_id:
+            raise ValueError("--view binding has an empty dataset id")
+        if dataset_id in input_map:
+            raise ValueError(f"duplicate --view binding for dataset {dataset_id!r}")
+        input_map[dataset_id] = path
+    _emit(benchmark.initialize(args.config, args.project, input_map))
+    return 0
+
+
+def _bench_release(argv):
+    parser = _Parser(prog="camera-tracks bench-release")
+    parser.add_argument("--project", required=True)
+    parser.add_argument("--request", required=True)
+    args = parser.parse_args(argv)
+    _emit(benchmark.release(args.project, args.request))
+    return 0
+
+
+def _bench_issue(argv):
+    parser = _Parser(prog="camera-tracks bench-issue")
+    parser.add_argument("--project", required=True)
+    parser.add_argument("--request", required=True)
+    args = parser.parse_args(argv)
+    _emit(benchmark.issue(args.project, args.request))
+    return 0
+
+
+def _bench_relate(argv):
+    parser = _Parser(prog="camera-tracks bench-relate")
+    parser.add_argument("--project", required=True)
+    parser.add_argument("--request", required=True)
+    args = parser.parse_args(argv)
+    _emit(benchmark.relate(args.project, args.request))
+    return 0
+
+
+def _bench_score(argv):
+    parser = _Parser(prog="camera-tracks bench-score")
+    parser.add_argument("--project", required=True)
+    parser.add_argument("--request", required=True)
+    args = parser.parse_args(argv)
+    _emit(benchmark.score(args.project, args.request))
+    return 0
+
+
+def _bench_scores(argv):
+    parser = _Parser(prog="camera-tracks bench-scores")
+    parser.add_argument("--project", required=True)
+    parser.add_argument("--booklet")
+    args = parser.parse_args(argv)
+    _emit(benchmark.scores(args.project, args.booklet))
+    return 0
+
+
+def _bench_audit(argv):
+    parser = _Parser(prog="camera-tracks bench-audit")
+    parser.add_argument("--project", required=True)
+    parser.add_argument("--booklet")
+    args = parser.parse_args(argv)
+    _emit(benchmark.audit(args.project, args.booklet))
+    return 0
+
+
+def _bench_status(argv):
+    parser = _Parser(prog="camera-tracks bench-status")
+    parser.add_argument("--project", required=True)
+    args = parser.parse_args(argv)
+    _emit(benchmark.status(args.project))
+    return 0
+
+
+def _bench_export(argv, kind, prog):
+    parser = _Parser(prog=prog)
+    parser.add_argument("--project", required=True)
+    parser.add_argument("--id", required=True)
+    parser.add_argument("--output", required=True)
+    args = parser.parse_args(argv)
+    _emit(benchmark.export(args.project, kind, args.id, args.output))
+    return 0
+
+
 _HANDLERS = {
+    "bench": _bench,
+    "bench-release": _bench_release,
+    "bench-issue": _bench_issue,
+    "bench-relate": _bench_relate,
+    "bench-score": _bench_score,
+    "bench-scores": _bench_scores,
+    "bench-audit": _bench_audit,
+    "bench-status": _bench_status,
+    "bench-export-training": lambda argv: _bench_export(
+        argv, "training", "camera-tracks bench-export-training"
+    ),
+    "bench-export-booklet": lambda argv: _bench_export(
+        argv, "booklet", "camera-tracks bench-export-booklet"
+    ),
     "build": _build,
     "correct": _correct,
     "query": _query,
@@ -213,7 +333,10 @@ def main(argv=None):
         if argv and argv[0] in ("-h", "--help"):
             print(
                 "usage: camera-tracks --source INPUT --output REPORT\n"
-                "       camera-tracks {build,correct,query,export,apply,view,accept,resurvey,earthwork,merge} ..."
+                "       camera-tracks {build,correct,query,export,apply,view,accept,resurvey,earthwork,merge} ...\n"
+                "       camera-tracks {bench,bench-release,bench-issue,bench-relate,bench-score,"
+                "bench-scores,bench-audit,bench-status,bench-export-training,"
+                "bench-export-booklet} ..."
             )
             return 0
         return _legacy(argv)
